@@ -1,0 +1,1045 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ล่าสมบัติมรณะ - คณิตศาสตร์ ป.2</title>
+    <!-- Google Font: Mitr -->
+    <link href="https://fonts.googleapis.com/css2?family=Mitr:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    
+    <!-- Three.js CDN -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+    
+    <!-- MediaPipe Hands & Camera Utils CDN -->
+    <script src="https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils/camera_utils.js" crossorigin="anonymous"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@mediapipe/hands/hands.js" crossorigin="anonymous"></script>
+
+    <style>
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+            font-family: 'Mitr', sans-serif;
+            user-select: none;
+        }
+
+        body {
+            width: 100vw;
+            height: 100vh;
+            overflow: hidden;
+            background-color: #111;
+        }
+
+        #webcam-video {
+            display: none;
+        }
+
+        #canvas-container {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            z-index: 1;
+        }
+
+        /* Screen Layout & Overlay */
+        .screen {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            z-index: 10;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            background: linear-gradient(135deg, rgba(20, 24, 82, 0.95), rgba(75, 19, 115, 0.95));
+            color: #fff;
+            transition: opacity 0.3s ease;
+        }
+
+        .screen.hidden {
+            opacity: 0;
+            pointer-events: none;
+            display: none;
+        }
+
+        .card {
+            background: rgba(255, 255, 255, 0.1);
+            backdrop-filter: blur(12px);
+            border: 2px solid rgba(255, 215, 0, 0.4);
+            border-radius: 24px;
+            padding: 35px;
+            width: 620px;
+            max-width: 90%;
+            text-align: center;
+            box-shadow: 0 20px 40px rgba(0,0,0,0.5);
+        }
+
+        h1 {
+            font-size: 2.6rem;
+            color: #FFD700;
+            margin-bottom: 15px;
+            text-shadow: 0 4px 12px rgba(0,0,0,0.4);
+        }
+
+        p, li {
+            font-size: 1.05rem;
+            color: #f1f2f6;
+            line-height: 1.6;
+        }
+
+        ul {
+            text-align: left;
+            margin: 15px 0;
+            padding-left: 20px;
+        }
+
+        /* System Check List */
+        .check-list {
+            margin: 20px 0;
+            background: rgba(0,0,0,0.3);
+            padding: 15px;
+            border-radius: 14px;
+            border: 1px solid rgba(255,255,255,0.1);
+        }
+
+        .check-item {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin: 12px 0;
+            font-size: 1.2rem;
+        }
+
+        .spinner {
+            width: 24px;
+            height: 24px;
+            border: 3px solid rgba(255,255,255,0.3);
+            border-top: 3px solid #FFD700;
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+        }
+
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+
+        .check-status {
+            font-weight: bold;
+        }
+        .check-status.success { color: #2ecc71; }
+        .check-status.error { color: #e74c3c; }
+
+        /* Buttons */
+        .btn {
+            background: #2ecc71;
+            color: white;
+            border: none;
+            padding: 12px 32px;
+            font-size: 1.25rem;
+            font-weight: 600;
+            border-radius: 50px;
+            cursor: pointer;
+            box-shadow: 0 6px 0 #27ae60, 0 10px 20px rgba(0,0,0,0.3);
+            transition: all 0.1s ease;
+            margin-top: 10px;
+        }
+
+        .btn:active {
+            transform: translateY(4px);
+            box-shadow: 0 2px 0 #27ae60, 0 5px 10px rgba(0,0,0,0.3);
+        }
+
+        .btn:disabled {
+            background: #7f8c8d;
+            box-shadow: 0 6px 0 #6d7f81;
+            cursor: not-allowed;
+            opacity: 0.6;
+        }
+
+        /* HUD & Gameplay UI */
+        #game-ui {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            z-index: 5;
+            pointer-events: none;
+            display: none;
+        }
+
+        .hud-top {
+            position: absolute;
+            top: 20px;
+            left: 50%;
+            transform: translateX(-50%);
+            display: flex;
+            gap: 20px;
+            background: rgba(0, 0, 0, 0.65);
+            backdrop-filter: blur(6px);
+            padding: 10px 25px;
+            border-radius: 30px;
+            border: 2px solid rgba(255,215,0,0.3);
+            pointer-events: auto;
+        }
+
+        .hud-box {
+            text-align: center;
+            font-size: 1.1rem;
+            font-weight: 600;
+            color: #fff;
+            min-width: 90px;
+        }
+
+        .hud-box span {
+            display: block;
+            color: #FFD700;
+            font-size: 1.35rem;
+        }
+
+        /* Notification banner below timer */
+        #notification-banner {
+            position: absolute;
+            top: 90px;
+            left: 50%;
+            transform: translateX(-50%);
+            background: rgba(0, 0, 0, 0.75);
+            color: #FFD700;
+            padding: 6px 24px;
+            border-radius: 20px;
+            font-size: 1.15rem;
+            font-weight: 500;
+            border: 1px solid rgba(255,215,0,0.4);
+            box-shadow: 0 4px 10px rgba(0,0,0,0.3);
+            text-align: center;
+        }
+
+        /* Popup Center Text */
+        #popup-center {
+            position: absolute;
+            top: 40%;
+            left: 50%;
+            transform: translate(-50%, -50%) scale(0.8);
+            font-size: 3.8rem;
+            font-weight: 700;
+            opacity: 0;
+            transition: all 0.25s ease;
+            pointer-events: none;
+            z-index: 20;
+            text-shadow: 0 4px 20px rgba(0,0,0,0.8);
+        }
+        #popup-center.show {
+            opacity: 1;
+            transform: translate(-50%, -50%) scale(1.15);
+        }
+        .popup-green { color: #2ecc71; }
+        .popup-red { color: #e74c3c; }
+
+        /* Side Controls */
+        .side-controls {
+            position: absolute;
+            top: 20px;
+            right: 20px;
+            display: flex;
+            flex-direction: column;
+            gap: 12px;
+            pointer-events: auto;
+        }
+
+        .toggle-btn {
+            background: #2ecc71;
+            color: white;
+            border: none;
+            padding: 10px 18px;
+            border-radius: 12px;
+            font-size: 1rem;
+            font-weight: 600;
+            cursor: pointer;
+            box-shadow: 0 4px 0 #27ae60;
+            transition: all 0.08s ease;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            min-width: 140px;
+        }
+        .toggle-btn.off {
+            background: #2c3e50;
+            box-shadow: 0 4px 0 #1a252f;
+        }
+        .toggle-btn:active {
+            transform: translateY(3px);
+            box-shadow: 0 1px 0 #27ae60;
+        }
+        .toggle-btn.off:active {
+            box-shadow: 0 1px 0 #1a252f;
+        }
+
+        /* Layout Area Dividers & Transparency */
+        .zone-divider-left {
+            position: absolute;
+            top: 0;
+            left: 25%;
+            width: 2px;
+            height: 100%;
+            background: rgba(255, 215, 0, 0.2);
+            pointer-events: none;
+        }
+        .zone-divider-right {
+            position: absolute;
+            top: 0;
+            left: 75%;
+            width: 2px;
+            height: 100%;
+            background: rgba(255, 215, 0, 0.2);
+            pointer-events: none;
+        }
+        .zone-left-bg {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 25%;
+            height: 100%;
+            background: rgba(0, 0, 0, 0.15);
+            pointer-events: none;
+        }
+        .zone-right-bg {
+            position: absolute;
+            top: 0;
+            left: 75%;
+            width: 25%;
+            height: 100%;
+            background: rgba(0, 0, 0, 0.15);
+            pointer-events: none;
+        }
+
+        /* 3D Object HTML Labels */
+        .word-label {
+            position: absolute;
+            transform: translate(-50%, -50%);
+            background: rgba(0, 0, 0, 0.8);
+            border: 2px solid #FFD700;
+            color: #FFD700;
+            padding: 6px 16px;
+            border-radius: 20px;
+            font-size: 1.25rem;
+            font-weight: 600;
+            pointer-events: none;
+            z-index: 4;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.6);
+        }
+
+        /* Charge Bar HUD */
+        #charge-hud-container {
+            position: absolute;
+            display: none;
+            flex-direction: column;
+            align-items: center;
+            pointer-events: none;
+            z-index: 6;
+        }
+        .charge-track {
+            width: 14px;
+            height: 110px;
+            background: rgba(0,0,0,0.6);
+            border: 2px solid rgba(255,255,255,0.5);
+            border-radius: 7px;
+            overflow: hidden;
+            display: flex;
+            flex-direction: column;
+            justify-content: flex-end;
+        }
+        .charge-fill {
+            width: 100%;
+            height: 0%;
+            background: linear-gradient(to top, #f1c40f, #e74c3c);
+            transition: height 0.05s linear;
+        }
+        .charge-text {
+            color: #fff;
+            font-size: 0.85rem;
+            font-weight: bold;
+            margin-top: 4px;
+            text-shadow: 0 2px 4px rgba(0,0,0,0.8);
+        }
+    </style>
+</head>
+<body>
+
+    <!-- Hidden Video element for MediaPipe -->
+    <video id="webcam-video" playsinline></video>
+
+    <!-- Three.js Canvas Container -->
+    <div id="canvas-container"></div>
+
+    <!-- Transparent Zone Guidelines & Dividers -->
+    <div class="zone-left-bg"></div>
+    <div class="zone-right-bg"></div>
+    <div class="zone-divider-left"></div>
+    <div class="zone-divider-right"></div>
+
+    <!-- START SCREEN -->
+    <div id="start-screen" class="screen">
+        <div class="card">
+            <h1>👑 ล่าสมบัติมรณะ (คณิตศาสตร์ ป.2)</h1>
+            <p>ผจญภัยในเมืองตึก 3D หลากหลายรูปทรง เปิดกล่องสมบัติที่มีคำตอบของโจทย์เลขให้ถูกต้อง!</p>
+            <ul>
+                <li><strong>โซนซ้าย (0% - 25%):</strong> พื้นที่ตรวจจับเมืองและตึก</li>
+                <li><strong>โซนขวา (75% - 100%):</strong> พื้นที่ควบคุมการเล็งยิงเปิดกล่อง</li>
+                <li><strong>มือซ้าย:</strong> ควบคุมตำแหน่งคันธนู / ตัวละคร</li>
+                <li><strong>มือขวา:</strong> กำมือเพื่อเล็ง และแบมือเพื่อยิงธนูเปิดกล่องสมบัติ!</li>
+            </ul>
+
+            <div class="check-list">
+                <div class="check-item">
+                    <span>โหลด AI Track มือ</span>
+                    <div id="check-ai" class="spinner"></div>
+                </div>
+                <div class="check-item">
+                    <span>ไอคอนสมบัติเพื่อเริ่ม</span>
+                    <div id="check-icon" style="font-size: 1.5rem;">🗝️</div>
+                </div>
+            </div>
+
+            <p id="error-msg" style="color: #e74c3c; margin-bottom: 10px; display: none;"></p>
+            <button id="start-btn" class="btn" disabled>เริ่มเกม</button>
+            <button id="retry-btn" class="btn" style="background: #e74c3c; display: none;">ลองตรวจสอบอีกครั้ง</button>
+        </div>
+    </div>
+
+    <!-- GAME OVER SCREEN -->
+    <div id="gameover-screen" class="screen hidden">
+        <div class="card">
+            <h1>🏆 สรุปผลคะแนนการล่าสมบัติ</h1>
+            <p style="font-size: 1.4rem; margin: 15px 0;">คะแนนรวมทั้งหมดของคุณ</p>
+            <h2 id="final-score" style="font-size: 3.8rem; color: #2ecc71; margin-bottom: 25px;">0</h2>
+            <button id="restart-btn" class="btn">เล่นใหม่อีกครั้ง</button>
+        </div>
+    </div>
+
+    <!-- IN-GAME UI -->
+    <div id="game-ui">
+        <div class="hud-top">
+            <div class="hud-box">คะแนน <span id="hud-score">0</span></div>
+            <div class="hud-box">เวลาข้อ <span id="hud-time">10</span>s</div>
+            <div class="hud-box">ข้อที่ <span id="hud-q">0/15</span></div>
+        </div>
+
+        <div id="notification-banner">โจทย์: กำลังโหลด...</div>
+        <div id="popup-center"></div>
+
+        <div class="side-controls">
+            <button id="btn-sound" class="toggle-btn">เสียง <span id="lbl-sound">เปิด</span></button>
+            <button id="btn-restart" class="toggle-btn" style="background: #c0392b; box-shadow: 0 4px 0 #962d22;">เริ่มใหม่</button>
+        </div>
+
+        <div id="charge-hud-container">
+            <div class="charge-track">
+                <div id="charge-fill" class="charge-fill"></div>
+            </div>
+            <div id="charge-pct" class="charge-text">0%</div>
+        </div>
+    </div>
+
+    <!-- Floating Word/Answer Labels Container -->
+    <div id="word-labels-container" style="position: absolute; top:0; left:0; width:100%; height:100%; pointer-events:none; z-index:4;"></div>
+
+    <script>
+        const QUESTIONS_BANK = [
+            { question: "15 + 8 = ?", correct: "23", options: ["23", "21", "25"] },
+            { question: "34 - 12 = ?", correct: "22", options: ["22", "24", "20"] },
+            { question: "7 × 3 = ?", correct: "21", options: ["21", "18", "24"] },
+            { question: "20 ÷ 4 = ?", correct: "5", options: ["5", "4", "6"] },
+            { question: "45 + 18 = ?", correct: "63", options: ["63", "61", "65"] },
+            { question: "50 - 27 = ?", correct: "23", options: ["23", "27", "25"] },
+            { question: "6 × 4 = ?", correct: "24", options: ["24", "22", "26"] },
+            { question: "36 ÷ 6 = ?", correct: "6", options: ["6", "5", "7"] },
+            { question: "28 + 19 = ?", correct: "47", options: ["47", "46", "49"] },
+            { question: "62 - 35 = ?", correct: "27", options: ["27", "25", "29"] },
+            { question: "8 × 2 = ?", correct: "16", options: ["16", "14", "18"] },
+            { question: "18 ÷ 3 = ?", correct: "6", options: ["6", "4", "8"] },
+            { question: "33 + 29 = ?", correct: "62", options: ["62", "60", "64"] },
+            { question: "71 - 43 = ?", correct: "28", options: ["28", "26", "30"] },
+            { question: "5 × 5 = ?", correct: "25", options: ["25", "20", "30"] }
+        ];
+
+        let gameState = {
+            score: 0,
+            questionTime: 10,
+            currentQ: 0,
+            maxQ: 15,
+            isStarted: false,
+            isGameOver: false,
+            soundEnabled: true
+        };
+
+        const startScreen = document.getElementById('start-screen');
+        const gameoverScreen = document.getElementById('gameover-screen');
+        const gameUi = document.getElementById('game-ui');
+        const startBtn = document.getElementById('start-btn');
+        const retryBtn = document.getElementById('retry-btn');
+        const restartBtn = document.getElementById('restart-btn');
+        const checkAi = document.getElementById('check-ai');
+        const errorMsg = document.getElementById('error-msg');
+
+        const hudScore = document.getElementById('hud-score');
+        const hudTime = document.getElementById('hud-time');
+        const hudQ = document.getElementById('hud-q');
+        const notificationBanner = document.getElementById('notification-banner');
+        const popupCenter = document.getElementById('popup-center');
+        const wordLabelsContainer = document.getElementById('word-labels-container');
+        const chargeHudContainer = document.getElementById('charge-hud-container');
+        const chargeFill = document.getElementById('charge-fill');
+        const chargePct = document.getElementById('charge-pct');
+
+        const btnSound = document.getElementById('btn-sound');
+        const btnRestart = document.getElementById('btn-restart');
+        const lblSound = document.getElementById('lbl-sound');
+
+        let aiReady = false;
+
+        class SoundSystem {
+            constructor() {
+                const AudioContext = window.AudioContext || window.webkitAudioContext;
+                this.ctx = new AudioContext();
+            }
+
+            playTone(freq, type, duration, gainVal = 0.1) {
+                if (!gameState.soundEnabled) return;
+                try {
+                    if (this.ctx.state === 'suspended') {
+                        this.ctx.resume();
+                    }
+                    const osc = this.ctx.createOscillator();
+                    const gain = this.ctx.createGain();
+                    osc.type = type;
+                    osc.frequency.setValueAtTime(freq, this.ctx.currentTime);
+                    gain.gain.setValueAtTime(gainVal, this.ctx.currentTime);
+                    gain.gain.exponentialRampToValueAtTime(0.0001, this.ctx.currentTime + duration);
+                    osc.connect(gain);
+                    gain.connect(this.ctx.destination);
+                    osc.start();
+                    osc.stop(this.ctx.currentTime + duration);
+                } catch(e) {}
+            }
+
+            playClick() { this.playTone(600, 'sine', 0.08, 0.05); }
+            playToggle() { this.playTone(750, 'triangle', 0.08, 0.05); }
+            playAiReady() { this.playTone(523.25, 'sine', 0.2, 0.08); }
+            playGameStart() { 
+                if (!gameState.soundEnabled) return;
+                setTimeout(() => this.playTone(440, 'sine', 0.12, 0.1), 0);
+                setTimeout(() => this.playTone(554.37, 'sine', 0.12, 0.1), 120);
+                setTimeout(() => this.playTone(659.25, 'sine', 0.25, 0.1), 240);
+            }
+            playNewQuestion() { this.playTone(587.33, 'sine', 0.1, 0.06); }
+            playSuccess() {
+                if (!gameState.soundEnabled) return;
+                setTimeout(() => this.playTone(523.25, 'sine', 0.12, 0.1), 0);
+                setTimeout(() => this.playTone(659.25, 'sine', 0.12, 0.1), 100);
+                setTimeout(() => this.playTone(783.99, 'sine', 0.25, 0.1), 200);
+            }
+            playWrong() {
+                if (!gameState.soundEnabled) return;
+                setTimeout(() => this.playTone(220, 'sawtooth', 0.15, 0.1), 0);
+                setTimeout(() => this.playTone(175, 'sawtooth', 0.25, 0.1), 120);
+            }
+            playGameOver() {
+                if (!gameState.soundEnabled) return;
+                setTimeout(() => this.playTone(400, 'sine', 0.2, 0.1), 0);
+                setTimeout(() => this.playTone(300, 'sine', 0.2, 0.1), 200);
+                setTimeout(() => this.playTone(200, 'sine', 0.4, 0.1), 400);
+            }
+        }
+        const sound = new SoundSystem();
+
+        const container = document.getElementById('canvas-container');
+        const scene = new THREE.Scene();
+        const camera = new THREE.PerspectiveCamera(60, window.innerWidth / window.innerHeight, 0.1, 1000);
+        camera.position.set(0, 0, 10);
+
+        const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
+        renderer.setSize(window.innerWidth, window.innerHeight);
+        renderer.setPixelRatio(window.devicePixelRatio);
+        container.appendChild(renderer.domElement);
+
+        const ambientLight = new THREE.AmbientLight(0xffffff, 0.85);
+        scene.add(ambientLight);
+        const dirLight = new THREE.DirectionalLight(0xffffff, 0.7);
+        dirLight.position.set(5, 10, 7);
+        scene.add(dirLight);
+
+        const videoElement = document.getElementById('webcam-video');
+        let videoTexture = null;
+        let bgMesh = null;
+
+        function initVideoBackground() {
+            videoTexture = new THREE.VideoTexture(videoElement);
+            videoTexture.minFilter = THREE.LinearFilter;
+            videoTexture.magFilter = THREE.LinearFilter;
+            const bgGeo = new THREE.PlaneGeometry(20, 20);
+            const bgMat = new THREE.MeshBasicMaterial({ map: videoTexture, depthWrite: false });
+            bgMesh = new THREE.Mesh(bgGeo, bgMat);
+            bgMesh.position.set(0, 0, -5);
+            scene.add(bgMesh);
+        }
+
+        const activeBuildings = [];
+        const activeChests = [];
+        const activeArrows = [];
+
+        function createCityEnvironment() {
+            const buildingGeoTypes = [
+                new THREE.BoxGeometry(1.2, 5, 1.2),           // Square
+                new THREE.ConeGeometry(0.8, 5, 4),            // Pyramid / Triangle
+                new THREE.CylinderGeometry(0.7, 0.7, 5, 16)   // Cylinder
+            ];
+
+            for (let i = 0; i < 4; i++) {
+                const geo = buildingGeoTypes[i % buildingGeoTypes.length];
+                const mat = new THREE.MeshStandardMaterial({ color: 0x34495e, roughness: 0.4 });
+                const building = new THREE.Mesh(geo, mat);
+                building.position.set(-4.5 + (i * 2.2), -2.2, -1.5);
+                scene.add(building);
+                activeBuildings.push(building);
+            }
+        }
+        createCityEnvironment();
+
+        function createTreasureChestModel(answerText, isCorrect) {
+            const chestGroup = new THREE.Group();
+
+            const boxMat = new THREE.MeshStandardMaterial({ color: 0x8E44AD, roughness: 0.3 });
+            const baseMesh = new THREE.Mesh(new THREE.BoxGeometry(1.1, 0.6, 0.8), boxMat);
+            baseMesh.position.y = -0.3;
+            chestGroup.add(baseMesh);
+
+            const lidMesh = new THREE.Mesh(new THREE.CylinderGeometry(0.55, 0.55, 1.1, 16, 1, false, 0, Math.PI), boxMat);
+            lidMesh.rotation.z = Math.PI / 2;
+            lidMesh.position.set(0, 0, 0);
+            lidMesh.rotation.x = -Math.PI / 2.5;
+            chestGroup.add(lidMesh);
+
+            const jewelMat = new THREE.MeshStandardMaterial({ color: 0xFFD700, metalness: 0.9, roughness: 0.1 });
+            for (let j = 0; j < 3; j++) {
+                const jewel = new THREE.Mesh(new THREE.OctahedronGeometry(0.16), jewelMat);
+                jewel.position.set((j - 1) * 0.3, 0.1, 0);
+                chestGroup.add(jewel);
+            }
+
+            chestGroup.userData = {
+                answer: answerText,
+                isCorrect: isCorrect,
+                velocity: { x: 0, y: -0.02 }
+            };
+
+            return chestGroup;
+        }
+
+        const bowGroup = new THREE.Group();
+        const handleMat = new THREE.MeshStandardMaterial({ color: 0xD35400, roughness: 0.3 });
+        const handleMesh = new THREE.Mesh(new THREE.CylinderGeometry(0.1, 0.1, 1.2, 16), handleMat);
+        bowGroup.add(handleMesh);
+        scene.add(bowGroup);
+        bowGroup.position.set(3, 0, 0);
+
+        let currentArrow = null;
+
+        function createArrowModel() {
+            const arrowGroup = new THREE.Group();
+            const shaftMat = new THREE.MeshStandardMaterial({ color: 0x95a5a6 });
+            const tipMat = new THREE.MeshStandardMaterial({ color: 0xbdc3c7, metalness: 0.8 });
+            const shaft = new THREE.Mesh(new THREE.CylinderGeometry(0.03, 0.03, 3, 8), shaftMat);
+            shaft.rotation.x = Math.PI / 2;
+            arrowGroup.add(shaft);
+            const tip = new THREE.Mesh(new THREE.ConeGeometry(0.06, 0.4, 8), tipMat);
+            tip.position.set(0, 0, -1.6);
+            tip.rotation.x = Math.PI / 2;
+            arrowGroup.add(tip);
+            return arrowGroup;
+        }
+
+        let handsInstance = null;
+        let cameraUtilsInstance = null;
+        
+        let leftHandPos = { x: 3, y: 0 };
+        let rightHandPos = { x: 4, y: 0 };
+        let leftHandFound = false;
+        let rightHandFound = false;
+        let rightHandGesture = "แบมือ";
+        
+        let isDrawing = false;
+        let chargePower = 0;
+        let rightHandMissingTimer = 0;
+
+        function classifyGesture(landmarks) {
+            const wrist = landmarks[0];
+            let foldedCount = 0;
+            const tips = [8, 12, 16, 20];
+            const pips = [6, 10, 14, 18];
+
+            for (let i = 0; i < 4; i++) {
+                if (Math.hypot(landmarks[tips[i]].x - wrist.x, landmarks[tips[i]].y - wrist.y) < Math.hypot(landmarks[pips[i]].x - wrist.x, landmarks[pips[i]].y - wrist.y) * 1.1) {
+                    foldedCount++;
+                }
+            }
+            if (foldedCount >= 3) return "กำมือ";
+            if (foldedCount <= 1) return "แบมือ";
+            return "กึ่งแบ";
+        }
+
+        function onResults(results) {
+            leftHandFound = false;
+            rightHandFound = false;
+
+            if (results.multiHandLandmarks && results.multiHandedness) {
+                for (let i = 0; i < results.multiHandLandmarks.length; i++) {
+                    const landmarks = results.multiHandLandmarks[i];
+                    const label = results.multiHandedness[i].label;
+
+                    const normX3D = ((1 - landmarks[9].x) - 0.75) * 8;
+                    const normY3D = -(landmarks[9].y - 0.5) * 6;
+
+                    if (label === "Left") {
+                        leftHandFound = true;
+                        leftHandPos.x = Math.max(0.2, normX3D);
+                        leftHandPos.y = normY3D;
+                    } else if (label === "Right") {
+                        rightHandFound = true;
+                        rightHandPos.x = normX3D;
+                        rightHandPos.y = normY3D;
+                        rightHandGesture = classifyGesture(landmarks);
+                    }
+                }
+            }
+
+            if (!aiReady && (leftHandFound || rightHandFound || results)) {
+                aiReady = true;
+                checkAi.className = "check-status success";
+                checkAi.innerText = "✓";
+                startBtn.disabled = false;
+                sound.playAiReady();
+            }
+        }
+
+        async function initAI() {
+            try {
+                handsInstance = new Hands({
+                    locateFile: (file) => `https://cdn.jsdelivr.net/npm/@mediapipe/hands/${file}`
+                });
+                handsInstance.setOptions({ maxNumHands: 2, modelComplexity: 1, minDetectionConfidence: 0.6, minTrackingConfidence: 0.6 });
+                handsInstance.onResults(onResults);
+
+                cameraUtilsInstance = new Camera(videoElement, {
+                    onFrame: async () => { if (handsInstance) await handsInstance.send({ image: videoElement }); },
+                    width: 640, height: 480
+                });
+                await cameraUtilsInstance.start();
+                initVideoBackground();
+            } catch (err) {
+                errorMsg.style.display = "block";
+                errorMsg.innerText = "ไม่สามารถเชื่อมต่อกล้องได้ กรุณาอนุญาตการใช้งานกล้องในเบราว์เซอร์";
+                retryBtn.style.display = "inline-block";
+            }
+        }
+
+        retryBtn.addEventListener('click', () => {
+            sound.playClick();
+            errorMsg.style.display = "none";
+            retryBtn.style.display = "none";
+            initAI();
+        });
+
+        let roundActive = false;
+        let questionTimerInterval = null;
+        let currentQuestionData = null;
+
+        function startGame() {
+            sound.playGameStart();
+            startScreen.classList.add('hidden');
+            gameUi.style.display = 'block';
+            
+            gameState.score = 0;
+            gameState.currentQ = 0;
+            gameState.isStarted = true;
+            gameState.isGameOver = false;
+
+            updateHUD();
+            startNextQuestion();
+        }
+
+        function updateHUD() {
+            hudScore.innerText = gameState.score;
+            hudTime.innerText = gameState.questionTime;
+            hudQ.innerText = `${gameState.currentQ}/${gameState.maxQ}`;
+        }
+
+        function showPopup(text, isGreen) {
+            popupCenter.innerText = text;
+            popupCenter.className = isGreen ? "show popup-green" : "show popup-red";
+            setTimeout(() => { popupCenter.className = ""; }, 1000);
+        }
+
+        function setNotification(text) {
+            notificationBanner.innerText = text;
+        }
+
+        function startNextQuestion() {
+            if (gameState.currentQ >= gameState.maxQ) {
+                endGame();
+                return;
+            }
+            gameState.currentQ++;
+            gameState.questionTime = 10;
+            updateHUD();
+            sound.playNewQuestion();
+
+            clearChests();
+
+            currentQuestionData = QUESTIONS_BANK[(gameState.currentQ - 1) % QUESTIONS_BANK.length];
+            setNotification(`โจทย์: ${currentQuestionData.question}`);
+
+            const shuffledOptions = [...currentQuestionData.options].sort(() => Math.random() - 0.5);
+            const xPositions = [-2.5, 0, 2.5];
+
+            shuffledOptions.forEach((opt, idx) => {
+                const isCorrect = (opt === currentQuestionData.correct);
+                const chest = createTreasureChestModel(opt, isCorrect);
+                chest.position.set(xPositions[idx], 4.5 + (Math.random() * 0.5), 0);
+                scene.add(chest);
+                activeChests.push(chest);
+                createAnswerLabel(chest, opt);
+            });
+
+            roundActive = true;
+
+            if (questionTimerInterval) clearInterval(questionTimerInterval);
+            questionTimerInterval = setInterval(() => {
+                if (gameState.questionTime > 0 && roundActive) {
+                    gameState.questionTime--;
+                    hudTime.innerText = gameState.questionTime;
+                    if (gameState.questionTime <= 0) {
+                        handleTimeout();
+                    }
+                }
+            }, 1000);
+        }
+
+        function handleTimeout() {
+            if (!roundActive) return;
+            roundActive = false;
+            if (questionTimerInterval) clearInterval(questionTimerInterval);
+
+            gameState.score = Math.max(0, gameState.score - 3);
+            updateHUD();
+            showPopup("-3", false);
+            setNotification("-3 ตอบไม่ทันเวลา");
+            sound.playWrong();
+
+            setTimeout(startNextQuestion, 1200);
+        }
+
+        function clearChests() {
+            activeChests.forEach(c => {
+                scene.remove(c);
+                if (c.userData.labelDiv) c.userData.labelDiv.remove();
+            });
+            activeChests.length = 0;
+            wordLabelsContainer.innerHTML = '';
+        }
+
+        function createAnswerLabel(chest, text) {
+            const div = document.createElement('div');
+            div.className = 'word-label';
+            div.innerText = text;
+            wordLabelsContainer.appendChild(div);
+            chest.userData.labelDiv = div;
+        }
+
+        function updateAnswerLabels() {
+            const tempV = new THREE.Vector3();
+            activeChests.forEach(chest => {
+                if (!chest.userData.labelDiv) return;
+                chest.getWorldPosition(tempV);
+                tempV.project(camera);
+                const x = (tempV.x *  .5 + .5) * window.innerWidth;
+                const y = (tempV.y * -.5 + .5) * window.innerHeight;
+                chest.userData.labelDiv.style.transform = `translate(-50%, -50%) translate(${x}px, ${y}px)`;
+            });
+        }
+
+        function shootArrow() {
+            if (!roundActive || !currentArrow) return;
+            sound.playClick();
+            
+            const arrow = currentArrow;
+            scene.remove(arrow);
+            currentArrow = null;
+
+            arrow.position.copy(bowGroup.position);
+            scene.add(arrow);
+            activeArrows.push(arrow);
+
+            arrow.userData = {
+                velocity: new THREE.Vector3(0, 0.35 + (chargePower * 0.002), -0.5)
+            };
+
+            isDrawing = false;
+            chargePower = 0;
+            chargeHudContainer.style.display = 'none';
+        }
+
+        function handleShotHit(chest) {
+            if (!roundActive) return;
+            roundActive = false;
+            if (questionTimerInterval) clearInterval(questionTimerInterval);
+
+            if (chest.userData.isCorrect) {
+                gameState.score += 10;
+                updateHUD();
+                showPopup("+10 ยอดเยี่ยม!", true);
+                setNotification(`ถูกต้อง! ${currentQuestionData.question} ได้ 10 คะแนน`);
+                sound.playSuccess();
+            } else {
+                gameState.score = Math.max(0, gameState.score - 5);
+                updateHUD();
+                showPopup("-5 ผิด", false);
+                setNotification(`ผิด! คำตอบที่ถูกคือ ${currentQuestionData.correct}`);
+                sound.playWrong();
+            }
+
+            setTimeout(startNextQuestion, 1500);
+        }
+
+        function endGame() {
+            gameState.isGameOver = true;
+            gameState.isStarted = false;
+            if (questionTimerInterval) clearInterval(questionTimerInterval);
+            clearChests();
+            sound.playGameOver();
+
+            gameUi.style.display = 'none';
+            document.getElementById('final-score').innerText = gameState.score;
+            gameoverScreen.classList.remove('hidden');
+        }
+
+        function animate() {
+            requestAnimationFrame(animate);
+
+            if (gameState.isStarted) {
+                // Bow & Hand tracking updates
+                if (rightHandFound) {
+                    rightHandMissingTimer = 0;
+                    bowGroup.position.x += (rightHandPos.x - bowGroup.position.x) * 0.2;
+                    bowGroup.position.y += (rightHandPos.y - bowGroup.position.y) * 0.2;
+
+                    if (rightHandGesture === "กำมือ") {
+                        if (!isDrawing) {
+                            isDrawing = true;
+                            chargePower = 0;
+                            if (!currentArrow) {
+                                currentArrow = createArrowModel();
+                                scene.add(currentArrow);
+                            }
+                        } else {
+                            chargePower = Math.min(100, chargePower + 3.5);
+                        }
+                        chargeHudContainer.style.display = 'flex';
+                        chargeHudContainer.style.left = `${(rightHandPos.x / 8 + 0.5) * window.innerWidth}px`;
+                        chargeHudContainer.style.top = `${(-rightHandPos.y / 6 + 0.5) * window.innerHeight - 70}px`;
+                        chargeFill.style.height = `${chargePower}%`;
+                        chargePct.innerText = `${Math.floor(chargePower)}%`;
+
+                        if (currentArrow) {
+                            currentArrow.position.copy(bowGroup.position);
+                        }
+                    } else if (rightHandGesture === "แบมือ" && isDrawing) {
+                        shootArrow();
+                    }
+                } else {
+                    rightHandMissingTimer++;
+                    if (rightHandMissingTimer > 30 && isDrawing) {
+                        shootArrow();
+                    }
+                }
+
+                // Chests falling movement
+                activeChests.forEach(chest => {
+                    chest.position.y += chest.userData.velocity.y;
+                    if (chest.position.y < -3.5) {
+                        chest.position.y = 4.5;
+                    }
+                });
+
+                // Arrows movement & collision detection
+                for (let i = activeArrows.length - 1; i >= 0; i--) {
+                    const arrow = activeArrows[i];
+                    arrow.position.add(arrow.userData.velocity);
+
+                    // Check collision with chests
+                    for (let j = 0; j < activeChests.length; j++) {
+                        const chest = activeChests[j];
+                        if (arrow.position.distanceTo(chest.position) < 1.0) {
+                            scene.remove(arrow);
+                            activeArrows.splice(i, 1);
+                            handleShotHit(chest);
+                            break;
+                        }
+                    }
+
+                    if (arrow && arrow.position.z < -10) {
+                        scene.remove(arrow);
+                        activeArrows.splice(i, 1);
+                    }
+                }
+
+                if (currentArrow) {
+                    currentArrow.position.copy(bowGroup.position);
+                }
+
+                updateAnswerLabels();
+            }
+
+            renderer.render(scene, camera);
+        }
+
+        window.addEventListener('resize', () => {
+            camera.aspect = window.innerWidth / window.innerHeight;
+            camera.updateProjectionMatrix();
+            renderer.setSize(window.innerWidth, window.innerHeight);
+        });
+
+        startBtn.addEventListener('click', () => {
+            sound.playClick();
+            startGame();
+        });
+
+        restartBtn.addEventListener('click', () => {
+            sound.playClick();
+            gameoverScreen.classList.add('hidden');
+            startGame();
+        });
+
+        btnRestart.addEventListener('click', () => {
+            sound.playClick();
+            endGame();
+        });
+
+        btnSound.addEventListener('click', () => {
+            sound.playToggle();
+            gameState.soundEnabled = !gameState.soundEnabled;
+            lblSound.innerText = gameState.soundEnabled ? "เปิด" : "ปิด";
+            btnSound.className = gameState.soundEnabled ? "toggle-btn" : "toggle-btn off";
+        });
+
+        window.onload = function() {
+            initAI();
+            animate();
+        };
+    </script>
+</body>
+</html>
